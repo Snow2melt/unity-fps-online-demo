@@ -23,9 +23,18 @@ public class ScoreboardUI : MonoBehaviour
         if (panel == null || text == null) return;
 
         bool show = Input.GetKey(KeyCode.Tab);
+        bool wasShowing = panel.activeSelf;
 
-        if (panel.activeSelf != show)
+        if (wasShowing != show)
+        {
             panel.SetActive(show);
+
+            if (show)
+            {
+                nextRefreshTime = 0f; // 刚打开，立刻刷新
+                RefreshScoreboard();
+            }
+        }
 
         if (!show) return;
 
@@ -56,30 +65,36 @@ public class ScoreboardUI : MonoBehaviour
 
         StringBuilder sb = new StringBuilder();
 
-        sb.AppendLine("<size=38><b>SCOREBOARD</b></size>");
-        sb.AppendLine("<color=#FFFFFF66>────────────────────────────</color>");
-        sb.AppendLine();
-        sb.AppendLine("<color=#FFFFFFAA><b>NAME</b><pos=240><b>K</b><pos=300><b>D</b></color>");
-        sb.AppendLine("<color=#FFFFFF66>────────────────────────────</color>");
-        sb.AppendLine();
+        const int nameMaxLen = 12;
+        const int kPos = 250;
+        const int dPos = 300;
+        const string line = "────────────────────────";
+
+        sb.AppendLine("<size=36><b>SCOREBOARD</b></size>");
+        sb.AppendLine("<color=#FFFFFF55>" + line + "</color>");
+        sb.AppendLine($"<size=22><color=#FFFFFFCC><b>NAME</b><pos={kPos}><b>K</b><pos={dPos}><b>D</b></color></size>");
+        sb.AppendLine("<color=#FFFFFF33>" + line + "</color>");
 
         foreach (var p in players)
         {
-            string name = p.Name;
-            if (name.Length > 16)
-                name = name.Substring(0, 16);
+            string displayName = p.Name;
+            if (displayName.Length > nameMaxLen)
+                displayName = displayName.Substring(0, nameMaxLen) + "...";
 
             bool isMe = !string.IsNullOrEmpty(localName) && p.Name == localName;
 
             if (isMe)
             {
+                displayName += " [You]";
                 sb.AppendLine(
-                    $"<color=#FFD86A><b>{name}</b></color><pos=240><color=#FFD86A><b>{p.K}</b></color><pos=300><color=#FFD86A><b>{p.D}</b></color>"
+                    $"<size=20><color=#FFD86A><b>{displayName}</b></color><pos={kPos}><color=#FFD86A><b>{p.K}</b></color><pos={dPos}><color=#FFD86A><b>{p.D}</b></color></size>"
                 );
             }
             else
             {
-                sb.AppendLine($"{name}<pos=240>{p.K}<pos=300>{p.D}");
+                sb.AppendLine(
+                    $"<size=20><color=#F2F2F2>{displayName}</color><pos={kPos}><color=#F2F2F2>{p.K}</color><pos={dPos}><color=#F2F2F2>{p.D}</color></size>"
+                );
             }
         }
 

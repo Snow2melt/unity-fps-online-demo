@@ -429,7 +429,7 @@ public class PlayerShooting : NetworkBehaviour
 
         targetPlayer.TakeDamage(damage);
     }*/
-    private void ApplyDamageServer(ulong shooterClientId, string targetName, int damage)
+    /*private void ApplyDamageServer(ulong shooterClientId, string targetName, int damage)
     {
         Player targetPlayer = null;
         try { targetPlayer = GameManager.Singleton.GetPlayer(targetName); } catch { targetPlayer = null; }
@@ -463,6 +463,37 @@ public class PlayerShooting : NetworkBehaviour
                     }
                 }
             }
+        }
+    }*/
+    private void ApplyDamageServer(ulong shooterClientId, string targetName, int damage)
+    {
+        Player targetPlayer = null;
+        try { targetPlayer = GameManager.Singleton.GetPlayer(targetName); }
+        catch { targetPlayer = null; }
+
+        if (targetPlayer == null) return;
+
+        // 防自伤
+        if (targetPlayer.OwnerClientId == shooterClientId) return;
+
+        // 只认真正的“死亡跃迁”
+        bool killedThisHit = targetPlayer.TakeDamage(damage);
+
+        if (!killedThisHit) return;
+
+        // 被杀者 deaths++
+        targetPlayer.Deaths.Value += 1;
+
+        // 击杀者 kills++
+        if (NetworkManager.Singleton.ConnectedClients.TryGetValue(shooterClientId, out var shooterClient))
+        {
+            var shooterObj = shooterClient.PlayerObject;
+            if (shooterObj == null) return;
+
+            var shooterPlayer = shooterObj.GetComponent<Player>();
+            if (shooterPlayer == null) return;
+
+            shooterPlayer.Kills.Value += 1;
         }
     }
 }

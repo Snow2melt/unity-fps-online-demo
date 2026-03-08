@@ -17,7 +17,7 @@ public class PlayerSetup : NetworkBehaviour
     // Start is called before the first frame update
     public override void OnNetworkSpawn()
     {
-        base.OnNetworkDespawn();
+        base.OnNetworkSpawn();
 
         if (!IsLocalPlayer)
         {
