@@ -8,6 +8,7 @@ TagManager:
   - RespawnPoint
   - TrainingTargetBody
   - TrainingTargetHead
+  - RangeControlButton
   layers:
   - Default
   - TransparentFX

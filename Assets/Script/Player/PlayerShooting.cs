@@ -21,6 +21,7 @@ public class PlayerShooting : NetworkBehaviour
 
     private PlayerController playerController;
 
+
     enum HitEffectMaterial
     {
         Metal,
@@ -370,15 +371,15 @@ public class PlayerShooting : NetworkBehaviour
         var shooterObj = client.PlayerObject;
         if (shooterObj == null) return;
 
-        // 1) 反作弊：方向要接近单位向量
+        // 1) 方向要接近单位向量
         float mag = direction.magnitude;
         if (mag < 0.9f || mag > 1.1f) return;
         direction /= mag;
 
-        // 2) 反作弊：origin 不允许离 shooter 太远（防伪造）
+        // 2) origin 不允许离 shooter 太远（防伪造）
         if (Vector3.Distance(origin, shooterObj.transform.position) > 2.0f) return;
 
-        // 3) ✅ 服务器读取武器配置（不信客户端传的伤害/射程）
+        // 3) 服务器读取武器配置（不信客户端传的伤害/射程）
         var wm = shooterObj.GetComponent<WeaponManager>();
         if (wm == null) return;
 
@@ -399,7 +400,9 @@ public class PlayerShooting : NetworkBehaviour
             bool hitTrainingBody = hit.collider.CompareTag("TrainingTargetBody");
             bool hitTrainingHead = hit.collider.CompareTag("TrainingTargetHead");
 
-            var mat = (hitPlayerBody || hitPlayerHead || hitTrainingBody || hitTrainingHead)
+            bool hitRangeControl = hit.collider.CompareTag("RangeControlButton");
+
+            var mat = (hitPlayerBody || hitPlayerHead || hitTrainingBody || hitTrainingHead || hitRangeControl)
                 ? HitEffectMaterial.Metal
                 : HitEffectMaterial.Stone;
 
@@ -429,6 +432,15 @@ public class PlayerShooting : NetworkBehaviour
 
                 bool killed = target.ApplyDamage(baseDamage, hitTrainingHead);
                 DebugClientRpc($"[TrainingTarget] hit={target.name}, head={hitTrainingHead}, killed={killed}");
+                return;
+            }
+            if (hitRangeControl)
+            {
+                RangeControlButton btn = hit.collider.GetComponentInParent<RangeControlButton>();
+                if (btn != null)
+                {
+                    btn.Trigger();
+                }
                 return;
             }
         }

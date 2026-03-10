@@ -34,8 +34,17 @@ public class RangeSessionManager : NetworkBehaviour
     public bool IsSessionRunning => sessionRunning;
     public int KillCount => killCount;
 
+    private bool forceStopRequested = false;
+    private int lastResultKills = 0;
+
     private void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Debug.LogWarning("Duplicate RangeSessionManager found.");
+        }
+
+
         Instance = this;
 
         if (timeText != null)
@@ -70,6 +79,7 @@ public class RangeSessionManager : NetworkBehaviour
     private IEnumerator SessionRoutine()
     {
         sessionRunning = true;
+        forceStopRequested = false;
         killCount = 0;
         sessionEndTime = Time.time + sessionDuration;
 
@@ -77,6 +87,9 @@ public class RangeSessionManager : NetworkBehaviour
 
         while (Time.time < sessionEndTime)
         {
+            if (forceStopRequested)
+                break;
+
             float remain = Mathf.Max(0f, sessionEndTime - Time.time);
 
             int slotIndex = GetRandomSlotIndex();
@@ -91,6 +104,9 @@ public class RangeSessionManager : NetworkBehaviour
 
             while (Time.time < targetEndTime && Time.time < sessionEndTime)
             {
+                if (forceStopRequested)
+                    break;
+
                 remain = Mathf.Max(0f, sessionEndTime - Time.time);
                 RefreshUIClientRpc(remain, killCount, "RUNNING");
 
@@ -112,7 +128,7 @@ public class RangeSessionManager : NetworkBehaviour
                 yield return null;
             }
 
-            if (Time.time >= sessionEndTime)
+            if (forceStopRequested || Time.time >= sessionEndTime)
             {
                 break;
             }
@@ -129,6 +145,7 @@ public class RangeSessionManager : NetworkBehaviour
 
         sessionRunning = false;
         currentSlotIndex = -1;
+        lastResultKills = killCount;
 
         RefreshUIClientRpc(0f, killCount, "FINISHED");
         sessionCoroutine = null;
@@ -164,20 +181,34 @@ public class RangeSessionManager : NetworkBehaviour
     {
         if (timeText != null)
         {
-            timeText.text = $"TIME: {Mathf.CeilToInt(remainTime)}";
+            timeText.text = $"TIME  {Mathf.CeilToInt(remainTime):00}";
         }
 
         if (killText != null)
         {
-            killText.text = $"KILLS: {kills}";
+            killText.text = $"SCORE  {kills}";
         }
 
         if (stateText != null)
         {
-            stateText.text = state;
+            switch (state)
+            {
+                case "READY":
+                    stateText.text = "SHOOT START TO BEGIN";
+                    break;
+                case "RUNNING":
+                    stateText.text = "SESSION RUNNING";
+                    break;
+                case "FINISHED":
+                    stateText.text = $"FINISHED  SCORE {kills}";
+                    break;
+                default:
+                    stateText.text = state;
+                    break;
+            }
         }
     }
-
+    /*
     private void StartSessionInternal()
     {
         Debug.Log($"[RangeSessionManager] StartSessionInternal | IsServer={IsServer} | sessionRunning={sessionRunning} | trainingTargetNull={trainingTarget == null} | slotCount={(targetSlots == null ? -1 : targetSlots.Length)}");
@@ -199,9 +230,9 @@ public class RangeSessionManager : NetworkBehaviour
     public void StartSessionServerRpc()
     {
         StartSessionInternal();
-    }
+    }*/
 
-    public override void OnNetworkSpawn()
+    /*public override void OnNetworkSpawn()
     {
         Debug.Log($"[RangeSessionManager] OnNetworkSpawn | scene={UnityEngine.SceneManagement.SceneManager.GetActiveScene().name} | IsServer={IsServer} | IsClient={IsClient} | IsSpawned={IsSpawned}");
 
@@ -229,5 +260,66 @@ public class RangeSessionManager : NetworkBehaviour
         yield return new WaitForSeconds(2f);
         Debug.Log("[RangeSessionManager] AutoStartAfterDelay finished, calling StartSessionInternal");
         StartSessionInternal();
+    }*/
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        if (!IsServer) return;
+
+        if (trainingTarget != null)
+        {
+            trainingTarget.HideTarget();
+        }
+
+        sessionRunning = false;
+        killCount = 0;
+        currentSlotIndex = -1;
+
+        RefreshUIClientRpc(0f, 0, "READY");
+    }
+    private void StartSessionInternal()
+    {
+        if (!IsServer) return;
+        if (sessionRunning) return;
+        if (trainingTarget == null) return;
+        if (targetSlots == null || targetSlots.Length == 0) return;
+
+        forceStopRequested = false;
+
+        if (sessionCoroutine != null)
+        {
+            StopCoroutine(sessionCoroutine);
+        }
+
+        sessionCoroutine = StartCoroutine(SessionRoutine());
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void StartSessionServerRpc()
+    {
+        StartSessionInternal();
+    }
+    private void StopSessionInternal()
+    {
+        if (!IsServer) return;
+        if (!sessionRunning) return;
+
+        forceStopRequested = true;
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void StopSessionServerRpc()
+    {
+        StopSessionInternal();
+    }
+    public void StartSessionByServer()
+    {
+        StartSessionInternal();
+    }
+
+    public void StopSessionByServer()
+    {
+        StopSessionInternal();
     }
 }
