@@ -24,9 +24,16 @@ public class Player : NetworkBehaviour
     public int GetKills() => Kills.Value;
     public int GetDeaths() => Deaths.Value;
 
+    [SerializeField] private bool respawnAtCurrentPosition = false;
+    private Vector3 initialSpawnPosition;
+
+    [SerializeField] private bool isBot = false;
+    public bool IsBot => isBot;
+
 
     public void Setup()
     {
+        initialSpawnPosition = transform.position;
         componentsEnabled = new bool[componentsToDisable.Length];
         for (int i = 0; i < componentsToDisable.Length; i++)
         {
@@ -126,7 +133,10 @@ public class Player : NetworkBehaviour
 
         for (int i = 0; i < componentsToDisable.Length; i++)
         {
-            componentsToDisable[i].enabled = componentsEnabled[i];
+            if (componentsToDisable[i] != null)
+            {
+                componentsToDisable[i].enabled = componentsEnabled[i];
+            }
         }
 
         Collider col = GetComponent<Collider>();
@@ -139,6 +149,11 @@ public class Player : NetworkBehaviour
         if (anim != null)
         {
             anim.SetInteger("direction", 0);
+        }
+
+        if (IsBot)
+        {
+            transform.localScale = Vector3.one;
         }
     }
 
@@ -161,13 +176,17 @@ public class Player : NetworkBehaviour
         }
     }*/
 
-    public bool TakeDamage(int damage) // 只在服务器端调用；返回“这次是否首次击杀成功”
+    public bool TakeDamage(int damage)
     {
         if (!IsServer) return false;
         if (isDead.Value) return false;
         if (damage <= 0) return false;
 
+        Debug.Log($"[TakeDamage-Before] {name} hp={currentHealth.Value}, damage={damage}, isBot={IsBot}");
+
         currentHealth.Value -= damage;
+
+        Debug.Log($"[TakeDamage-After] {name} hp={currentHealth.Value}");
 
         if (currentHealth.Value > 0)
         {
@@ -177,13 +196,15 @@ public class Player : NetworkBehaviour
         currentHealth.Value = 0;
         isDead.Value = true;
 
+        Debug.Log($"[Dead] {name} died. isBot={IsBot}");
+
         if (!IsHost)
         {
             DieOnServer();
         }
 
-        DieClientRpc(); // 发到每一个客户端上
-        return true;    // 只有 alive -> dead 这一瞬间才会返回 true
+        DieClientRpc();
+        return true;
     }
 
     private void DieOnServer()
@@ -197,19 +218,44 @@ public class Player : NetworkBehaviour
     }
     private void Die()
     {
-        GetComponent<PlayerShooting>().StopShooting();
+        var shooting = GetComponent<PlayerShooting>();
+        if (shooting != null)
+        {
+            shooting.StopShooting();
+        }
 
-        GetComponentInChildren<Animator>().SetInteger("direction", -1);  //动态获取
-        GetComponent<Rigidbody>().useGravity = false;
+        var anim = GetComponentInChildren<Animator>();
+        if (anim != null)
+        {
+            anim.SetInteger("direction", -1);
+        }
+
+        var rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.useGravity = false;
+        }
 
         for (int i = 0; i < componentsToDisable.Length; i++)
         {
-            componentsToDisable[i].enabled = false;
+            if (componentsToDisable[i] != null)
+            {
+                componentsToDisable[i].enabled = false;
+            }
         }
-        Collider col = GetComponent<Collider>();
-        col.enabled = false;
 
-        //StartCoroutine(Respawn());
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+        {
+            col.enabled = false;
+        }
+
+        // 只有 Bot 才缩扁，正常玩家不缩
+        if (IsBot)
+        {
+            transform.localScale = new Vector3(1f, 0.2f, 1f);
+        }
+
         if (IsServer)
         {
             StartCoroutine(Respawn());
@@ -233,6 +279,11 @@ public class Player : NetworkBehaviour
     }*/
     private Vector3 GetRespawnPosition()
     {
+        if (respawnAtCurrentPosition)
+        {
+            return initialSpawnPosition;
+        }
+
         GameObject[] spawns = GameObject.FindGameObjectsWithTag("RespawnPoint");
 
         if (spawns != null && spawns.Length > 0)
@@ -254,8 +305,8 @@ public class Player : NetworkBehaviour
             }
         }
 
-        Debug.LogWarning("[Respawn] No valid RespawnPoint found, fallback to default position.");
-        return new Vector3(0f, 10f, 0f);
+        Debug.LogWarning("[Respawn] No valid RespawnPoint found, fallback to current position.");
+        return initialSpawnPosition;
     }
 
     [ClientRpc]

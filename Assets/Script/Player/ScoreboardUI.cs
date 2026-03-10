@@ -51,7 +51,8 @@ public class ScoreboardUI : MonoBehaviour
             localName = n;
 
         var players = GameManager.GetPlayers()
-            .Where(kv => kv.Value != null)
+            //.Where(kv => kv.Value != null)
+            .Where(kv => kv.Value != null && !kv.Value.IsBot)
             .Select(kv => new
             {
                 Name = kv.Key,

@@ -39,11 +39,6 @@ public class PlayerShooting : NetworkBehaviour
     {
 
     }
-    [ClientRpc]
-    private void DebugClientRpc(string msg)
-    {
-        Debug.LogError(msg);
-    }
 
     // Update is called once per frame
     void Update()
@@ -395,105 +390,137 @@ public class PlayerShooting : NetworkBehaviour
         float headMul = config.headshotMultiplier;
 
         // 4) 服务器 Raycast
-        // 4) 服务器 Raycast
         RaycastHit hit;
         if (Physics.Raycast(origin, direction, out hit, range, layerMask, QueryTriggerInteraction.Collide))
         {
-            bool hitBody = hit.collider.CompareTag("Player");
-            bool hitHead = hit.collider.CompareTag("Head");
+            bool hitPlayerBody = hit.collider.CompareTag("Player");
+            bool hitPlayerHead = hit.collider.CompareTag("Head");
 
-            // ✅ 先决定命中材质（你现在先简单：打到玩家=Metal，其他=Stone）
-            var mat = (hitBody || hitHead) ? HitEffectMaterial.Metal : HitEffectMaterial.Stone;
+            bool hitTrainingBody = hit.collider.CompareTag("TrainingTargetBody");
+            bool hitTrainingHead = hit.collider.CompareTag("TrainingTargetHead");
 
-            // ✅ 广播击中特效（所有客户端本地Instantiate）
+            var mat = (hitPlayerBody || hitPlayerHead || hitTrainingBody || hitTrainingHead)
+                ? HitEffectMaterial.Metal
+                : HitEffectMaterial.Stone;
+
             OnHitClientRpc(hit.point, hit.normal, mat);
 
-            // ✅ 命中玩家才扣血
-            if (hitBody || hitHead)
+            // 真人玩家
+            if (hitPlayerBody || hitPlayerHead)
             {
-                string targetName = hit.collider.transform.root.name;
-                int finalDamage = hitHead ? Mathf.RoundToInt(baseDamage * headMul) : baseDamage;
+                Player targetPlayer = hit.collider.GetComponentInParent<Player>();
+                int finalDamage = hitPlayerHead
+                    ? Mathf.RoundToInt(baseDamage * headMul)
+                    : baseDamage;
 
-                ApplyDamageServer(shooterClientId, targetName, finalDamage);
+                ApplyDamageServer(shooterClientId, targetPlayer, finalDamage);
+                return;
+            }
+
+            // 训练靶
+            if (hitTrainingBody || hitTrainingHead)
+            {
+                TrainingTarget target = hit.collider.GetComponentInParent<TrainingTarget>();
+                if (target == null)
+                {
+                    DebugClientRpc("[TrainingTarget] target is null");
+                    return;
+                }
+
+                bool killed = target.ApplyDamage(baseDamage, hitTrainingHead);
+                DebugClientRpc($"[TrainingTarget] hit={target.name}, head={hitTrainingHead}, killed={killed}");
+                return;
             }
         }
     }
-    /*private void ApplyDamageServer(ulong shooterClientId, string targetName, int damage)
+    /*
+    private void ApplyDamageServer(ulong shooterClientId, Player targetPlayer, int damage)
     {
-        Player targetPlayer = null;
-        try { targetPlayer = GameManager.Singleton.GetPlayer(targetName); } catch { targetPlayer = null; }
-        if (targetPlayer == null) return;
-
-        // 防自伤（最基本）
-        if (targetPlayer.OwnerClientId == shooterClientId) return;
-
-        targetPlayer.TakeDamage(damage);
-    }*/
-    /*private void ApplyDamageServer(ulong shooterClientId, string targetName, int damage)
-    {
-        Player targetPlayer = null;
-        try { targetPlayer = GameManager.Singleton.GetPlayer(targetName); } catch { targetPlayer = null; }
-        if (targetPlayer == null) return;
-
-        // 防自伤
-        if (targetPlayer.OwnerClientId == shooterClientId) return;
-
-        // ✅ 1) 预判是否会死（在扣血前）
-        bool willDie = (targetPlayer.GetHealth() - damage) <= 0;
-
-        // ✅ 2) 真正扣血（你的原逻辑）
-        targetPlayer.TakeDamage(damage);
-
-        // ✅ 3) 如果会死：加分（只在服务器执行）
-        if (willDie)
+        if (targetPlayer == null)
         {
-            // 被杀者 deaths++
-            targetPlayer.Deaths.Value += 1;
-
-            // 击杀者 kills++
-            if (NetworkManager.Singleton.ConnectedClients.TryGetValue(shooterClientId, out var shooterClient))
-            {
-                var shooterObj = shooterClient.PlayerObject;
-                if (shooterObj != null)
-                {
-                    var shooterPlayer = shooterObj.GetComponent<Player>();
-                    if (shooterPlayer != null)
-                    {
-                        shooterPlayer.Kills.Value += 1;
-                    }
-                }
-            }
+            Debug.LogWarning("[ApplyDamage] targetPlayer is null");
+            return;
         }
-    }*/
-    private void ApplyDamageServer(ulong shooterClientId, string targetName, int damage)
-    {
-        Player targetPlayer = null;
-        try { targetPlayer = GameManager.Singleton.GetPlayer(targetName); }
-        catch { targetPlayer = null; }
 
-        if (targetPlayer == null) return;
+        if (!NetworkManager.Singleton.ConnectedClients.TryGetValue(shooterClientId, out var shooterClient))
+            return;
 
-        // 防自伤
-        if (targetPlayer.OwnerClientId == shooterClientId) return;
+        var shooterObj = shooterClient.PlayerObject;
+        if (shooterObj == null) return;
 
-        // 只认真正的“死亡跃迁”
+        if (targetPlayer.gameObject == shooterObj.gameObject) return;
+
         bool killedThisHit = targetPlayer.TakeDamage(damage);
+        if (!killedThisHit) return;
+
+        if (!targetPlayer.IsBot)
+        {
+            targetPlayer.Deaths.Value += 1;
+        }
+
+        var shooterPlayer = shooterObj.GetComponent<Player>();
+        if (shooterPlayer == null) return;
+
+        shooterPlayer.Kills.Value += 1;
+    }
+
+    */
+
+    private void ApplyDamageServer(ulong shooterClientId, Player targetPlayer, int damage)
+    {
+        if (targetPlayer == null)
+        {
+            DebugClientRpc("[ApplyDamage] targetPlayer is null");
+            return;
+        }
+
+        if (!NetworkManager.Singleton.ConnectedClients.TryGetValue(shooterClientId, out var shooterClient))
+        {
+            DebugClientRpc("[ApplyDamage] shooterClient not found");
+            return;
+        }
+
+        var shooterObj = shooterClient.PlayerObject;
+        if (shooterObj == null)
+        {
+            DebugClientRpc("[ApplyDamage] shooterObj is null");
+            return;
+        }
+
+        if (targetPlayer.gameObject == shooterObj.gameObject)
+        {
+            DebugClientRpc("[ApplyDamage] self-hit blocked");
+            return;
+        }
+
+        DebugClientRpc($"[ApplyDamage] hit {targetPlayer.name}, damage={damage}, isBot={targetPlayer.IsBot}");
+
+        bool killedThisHit = targetPlayer.TakeDamage(damage);
+
+        DebugClientRpc($"[ApplyDamage] killedThisHit={killedThisHit}");
 
         if (!killedThisHit) return;
 
-        // 被杀者 deaths++
-        targetPlayer.Deaths.Value += 1;
-
-        // 击杀者 kills++
-        if (NetworkManager.Singleton.ConnectedClients.TryGetValue(shooterClientId, out var shooterClient))
+        if (!targetPlayer.IsBot)
         {
-            var shooterObj = shooterClient.PlayerObject;
-            if (shooterObj == null) return;
-
-            var shooterPlayer = shooterObj.GetComponent<Player>();
-            if (shooterPlayer == null) return;
-
-            shooterPlayer.Kills.Value += 1;
+            targetPlayer.Deaths.Value += 1;
         }
+
+        var shooterPlayer = shooterObj.GetComponent<Player>();
+        if (shooterPlayer == null)
+        {
+            DebugClientRpc("[ApplyDamage] shooterPlayer is null");
+            return;
+        }
+
+        shooterPlayer.Kills.Value += 1;
+        DebugClientRpc($"[ApplyDamage] shooter kills now={shooterPlayer.Kills.Value}");
+    }
+
+
+    [ClientRpc]
+    private void DebugClientRpc(string msg)
+    {
+        Debug.LogError(msg);
     }
 }
