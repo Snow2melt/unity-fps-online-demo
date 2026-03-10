@@ -18,10 +18,13 @@ public class RangeSessionManager : NetworkBehaviour
     [Header("Optional UI")]
     [SerializeField] private TMP_Text timeText;
     [SerializeField] private TMP_Text killText;
+    [SerializeField] private TMP_Text bestText;
+    [SerializeField] private TMP_Text headshotText;
     [SerializeField] private TMP_Text stateText;
 
     private bool sessionRunning = false;
     private int killCount = 0;
+    private int headshotCount = 0;
     private float sessionEndTime = 0f;
 
     private Coroutine sessionCoroutine;
@@ -33,57 +36,69 @@ public class RangeSessionManager : NetworkBehaviour
 
     public bool IsSessionRunning => sessionRunning;
     public int KillCount => killCount;
+    public int BestScore => bestScore;
+    public int HeadshotCount => headshotCount;
 
     private bool forceStopRequested = false;
     private int lastResultKills = 0;
+    private int bestScore = 0;
 
     private void Awake()
     {
         if (Instance != null && Instance != this)
         {
-            Debug.LogWarning("Duplicate RangeSessionManager found.");
+            Debug.LogWarning($"Duplicate RangeSessionManager found, destroying: {name}");
+            Destroy(gameObject);
+            return;
         }
-
 
         Instance = this;
 
         if (timeText != null)
-        {
-            timeText.text = "TIME: 0";
-        }
+            timeText.text = "TIME  00";
 
         if (killText != null)
-        {
-            killText.text = "KILLS: 0";
-        }
+            killText.text = "SCORE  0";
+
+        if (bestText != null)
+            bestText.text = "BEST  0";
+
+        if (headshotText != null)
+            headshotText.text = "HEAD  0";
 
         if (stateText != null)
-        {
             stateText.text = "READY";
-        }
     }
 
-    /*public override void OnNetworkSpawn()
+    public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
 
-        if (IsServer)
+        if (!IsServer) return;
+
+        if (trainingTarget != null)
         {
-            if (trainingTarget != null)
-            {
-                trainingTarget.HideTarget();
-            }
+            trainingTarget.HideTarget();
         }
-    }*/
+
+        sessionRunning = false;
+        killCount = 0;
+        headshotCount = 0;
+        currentSlotIndex = -1;
+        forceStopRequested = false;
+
+        RefreshUIClientRpc(0f, 0, bestScore, 0, "READY");
+    }
 
     private IEnumerator SessionRoutine()
     {
         sessionRunning = true;
         forceStopRequested = false;
         killCount = 0;
+        headshotCount = 0;
         sessionEndTime = Time.time + sessionDuration;
 
-        RefreshUIClientRpc(sessionDuration, killCount, "RUNNING");
+        RefreshUIClientRpc(sessionDuration, killCount, bestScore, headshotCount, "RUNNING");
 
         while (Time.time < sessionEndTime)
         {
@@ -108,13 +123,13 @@ public class RangeSessionManager : NetworkBehaviour
                     break;
 
                 remain = Mathf.Max(0f, sessionEndTime - Time.time);
-                RefreshUIClientRpc(remain, killCount, "RUNNING");
+                RefreshUIClientRpc(remain, killCount, bestScore, headshotCount, "RUNNING");
 
                 if (targetKilledThisRound || trainingTarget.IsDead)
                 {
                     killedThisRound = true;
                     killCount++;
-                    RefreshUIClientRpc(remain, killCount, "RUNNING");
+                    RefreshUIClientRpc(remain, killCount, bestScore, headshotCount, "RUNNING");
                     break;
                 }
 
@@ -146,24 +161,21 @@ public class RangeSessionManager : NetworkBehaviour
         sessionRunning = false;
         currentSlotIndex = -1;
         lastResultKills = killCount;
+        bestScore = Mathf.Max(bestScore, killCount);
 
-        RefreshUIClientRpc(0f, killCount, "FINISHED");
+        RefreshUIClientRpc(0f, killCount, bestScore, headshotCount, "FINISHED");
         sessionCoroutine = null;
     }
 
     private int GetRandomSlotIndex()
     {
-        if (targetSlots.Length <= 1)
-        {
+        if (targetSlots == null || targetSlots.Length <= 1)
             return 0;
-        }
 
         int index = Random.Range(0, targetSlots.Length);
 
         if (index == currentSlotIndex)
-        {
             index = (index + 1) % targetSlots.Length;
-        }
 
         return index;
     }
@@ -176,31 +188,46 @@ public class RangeSessionManager : NetworkBehaviour
         targetKilledThisRound = true;
     }
 
-    [ClientRpc]
-    private void RefreshUIClientRpc(float remainTime, int kills, string state)
+    public void NotifyTargetHeadshotKilled()
     {
+        if (!IsServer) return;
+        if (!sessionRunning) return;
+
+        targetKilledThisRound = true;
+        headshotCount++;
+
+        Debug.Log($"[RangeSessionManager] Headshot++ on {name}, headshotCount={headshotCount}");
+    }
+
+    [ClientRpc]
+    private void RefreshUIClientRpc(float remainTime, int kills, int best, int heads, string state)
+    {
+
+        Debug.Log($"[RangeSessionManager] RefreshUI on {name}, heads={heads}");
         if (timeText != null)
-        {
             timeText.text = $"TIME  {Mathf.CeilToInt(remainTime):00}";
-        }
 
         if (killText != null)
-        {
             killText.text = $"SCORE  {kills}";
-        }
+
+        if (bestText != null)
+            bestText.text = $"BEST  {best}";
+
+        if (headshotText != null)
+            headshotText.text = $"HEAD {heads}";
 
         if (stateText != null)
         {
             switch (state)
             {
                 case "READY":
-                    stateText.text = "SHOOT START TO BEGIN";
+                    stateText.text = "READY";
                     break;
                 case "RUNNING":
-                    stateText.text = "SESSION RUNNING";
+                    stateText.text = "RUNNING";
                     break;
                 case "FINISHED":
-                    stateText.text = $"FINISHED  SCORE {kills}";
+                    stateText.text = $"FINISHED  {kills}";
                     break;
                 default:
                     stateText.text = state;
@@ -208,76 +235,7 @@ public class RangeSessionManager : NetworkBehaviour
             }
         }
     }
-    /*
-    private void StartSessionInternal()
-    {
-        Debug.Log($"[RangeSessionManager] StartSessionInternal | IsServer={IsServer} | sessionRunning={sessionRunning} | trainingTargetNull={trainingTarget == null} | slotCount={(targetSlots == null ? -1 : targetSlots.Length)}");
 
-        if (!IsServer) return;
-        if (sessionRunning) return;
-        if (trainingTarget == null) return;
-        if (targetSlots == null || targetSlots.Length == 0) return;
-
-        if (sessionCoroutine != null)
-        {
-            StopCoroutine(sessionCoroutine);
-        }
-
-        sessionCoroutine = StartCoroutine(SessionRoutine());
-    }
-
-    [ServerRpc(RequireOwnership = false)]
-    public void StartSessionServerRpc()
-    {
-        StartSessionInternal();
-    }*/
-
-    /*public override void OnNetworkSpawn()
-    {
-        Debug.Log($"[RangeSessionManager] OnNetworkSpawn | scene={UnityEngine.SceneManagement.SceneManager.GetActiveScene().name} | IsServer={IsServer} | IsClient={IsClient} | IsSpawned={IsSpawned}");
-
-        base.OnNetworkSpawn();
-
-        if (IsServer)
-        {
-            if (trainingTarget != null)
-            {
-                Debug.Log("[RangeSessionManager] Hide target on spawn");
-                trainingTarget.HideTarget();
-            }
-            else
-            {
-                Debug.LogError("[RangeSessionManager] trainingTarget is NULL");
-            }
-
-            Debug.Log("[RangeSessionManager] Start AutoStartAfterDelay");
-            StartCoroutine(AutoStartAfterDelay());
-        }
-    }
-
-    private IEnumerator AutoStartAfterDelay()
-    {
-        yield return new WaitForSeconds(2f);
-        Debug.Log("[RangeSessionManager] AutoStartAfterDelay finished, calling StartSessionInternal");
-        StartSessionInternal();
-    }*/
-    public override void OnNetworkSpawn()
-    {
-        base.OnNetworkSpawn();
-
-        if (!IsServer) return;
-
-        if (trainingTarget != null)
-        {
-            trainingTarget.HideTarget();
-        }
-
-        sessionRunning = false;
-        killCount = 0;
-        currentSlotIndex = -1;
-
-        RefreshUIClientRpc(0f, 0, "READY");
-    }
     private void StartSessionInternal()
     {
         if (!IsServer) return;
@@ -288,9 +246,7 @@ public class RangeSessionManager : NetworkBehaviour
         forceStopRequested = false;
 
         if (sessionCoroutine != null)
-        {
             StopCoroutine(sessionCoroutine);
-        }
 
         sessionCoroutine = StartCoroutine(SessionRoutine());
     }
@@ -300,6 +256,7 @@ public class RangeSessionManager : NetworkBehaviour
     {
         StartSessionInternal();
     }
+
     private void StopSessionInternal()
     {
         if (!IsServer) return;
@@ -313,6 +270,7 @@ public class RangeSessionManager : NetworkBehaviour
     {
         StopSessionInternal();
     }
+
     public void StartSessionByServer()
     {
         StartSessionInternal();

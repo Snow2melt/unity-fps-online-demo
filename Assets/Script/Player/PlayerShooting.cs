@@ -431,6 +431,19 @@ public class PlayerShooting : NetworkBehaviour
                 }
 
                 bool killed = target.ApplyDamage(baseDamage, hitTrainingHead);
+
+                if (killed && RangeSessionManager.Instance != null)
+                {
+                    if (hitTrainingHead)
+                    {
+                        RangeSessionManager.Instance.NotifyTargetHeadshotKilled();
+                    }
+                    else
+                    {
+                        RangeSessionManager.Instance.NotifyTargetKilled();
+                    }
+                }
+
                 DebugClientRpc($"[TrainingTarget] hit={target.name}, head={hitTrainingHead}, killed={killed}");
                 return;
             }
