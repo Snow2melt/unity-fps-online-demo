@@ -31,7 +31,7 @@ public class ScoreboardUI : MonoBehaviour
 
             if (show)
             {
-                nextRefreshTime = 0f; // 刚打开，立刻刷新
+                nextRefreshTime = 0f;
                 RefreshScoreboard();
             }
         }
@@ -51,7 +51,6 @@ public class ScoreboardUI : MonoBehaviour
             localName = n;
 
         var players = GameManager.GetPlayers()
-            //.Where(kv => kv.Value != null)
             .Where(kv => kv.Value != null && !kv.Value.IsBot)
             .Select(kv => new
             {

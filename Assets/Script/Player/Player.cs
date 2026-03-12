@@ -12,15 +12,12 @@ public class Player : NetworkBehaviour
     private bool[] componentsEnabled;
     private bool colliderEnabled;
 
-    private NetworkVariable<int> currentHealth = new NetworkVariable<int>(); //修改服务器端
-
+    private NetworkVariable<int> currentHealth = new NetworkVariable<int>();
     private NetworkVariable<bool> isDead = new NetworkVariable<bool>();
 
-    // Player.cs 里字段区加
     public NetworkVariable<int> Kills = new NetworkVariable<int>(0);
     public NetworkVariable<int> Deaths = new NetworkVariable<int>(0);
 
-    // 可选：给 UI 用的 getter
     public int GetKills() => Kills.Value;
     public int GetDeaths() => Deaths.Value;
 
@@ -29,7 +26,6 @@ public class Player : NetworkBehaviour
 
     [SerializeField] private bool isBot = false;
     public bool IsBot => isBot;
-
 
     public void Setup()
     {
@@ -42,7 +38,6 @@ public class Player : NetworkBehaviour
         Collider col = GetComponent<Collider>();
         colliderEnabled = col.enabled;
         SetDefaults();
-
     }
 
     public void SetDefaults()
@@ -51,11 +46,11 @@ public class Player : NetworkBehaviour
         {
             componentsToDisable[i].enabled = componentsEnabled[i];
         }
+
         Collider col = GetComponent<Collider>();
         col.enabled = colliderEnabled;
 
-        if (IsServer) //为什么服务器不动
-        //if (IsLocalPlayer)
+        if (IsServer)
         {
             currentHealth.Value = maxHealth;
             isDead.Value = false;
@@ -67,30 +62,6 @@ public class Player : NetworkBehaviour
         return isDead.Value;
     }
 
-    /*private IEnumerator Respawn()
-    {
-        yield return new WaitForSeconds(3f);
-
-        Rigidbody rb = GetComponent<Rigidbody>();
-
-        if (!rb.isKinematic)
-        {
-            rb.velocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-        }
-        rb.useGravity = true;
-
-        GetComponent<PlayerController>()?.ResetMovement();
-
-        if (IsServer)
-        {
-            transform.position = new Vector3(0f, 10f, 0f);
-        }
-
-        SetDefaults();
-
-        GetComponentInChildren<Animator>().SetInteger("direction", 0);
-    }*/
     private IEnumerator Respawn()
     {
         yield return new WaitForSeconds(3f);
@@ -99,13 +70,9 @@ public class Player : NetworkBehaviour
 
         Vector3 spawnPos = GetRespawnPosition();
 
-        // 先由服务器恢复真正的生命状态
         SetDefaults();
-
-        // 所有人都恢复这个玩家的表现状态
         RespawnVisualsClientRpc();
 
-        // 再单独通知 owner 去传送
         var sendParams = new ClientRpcParams
         {
             Send = new ClientRpcSendParams
@@ -122,6 +89,7 @@ public class Player : NetworkBehaviour
             GetComponent<PlayerController>()?.ResetMovement();
         }
     }
+
     [ClientRpc]
     private void RespawnVisualsClientRpc()
     {
@@ -156,25 +124,6 @@ public class Player : NetworkBehaviour
             transform.localScale = Vector3.one;
         }
     }
-
-
-    /*public void TakeDamage(int damage)//受到了多少伤害,只会在服务器段调用
-    {
-        if (isDead.Value) return;
-
-        currentHealth.Value -= damage;
-        if (currentHealth.Value <= 0)
-        {
-            currentHealth.Value = 0;
-            isDead.Value = true;
-
-            if (!IsHost)
-            {
-                DieOnServer();
-            }
-            DieClientRpc();//发到每一个客户端上，三个客户端的调用·
-        }
-    }*/
 
     public bool TakeDamage(int damage)
     {
@@ -211,11 +160,13 @@ public class Player : NetworkBehaviour
     {
         Die();
     }
+
     [ClientRpc]
     private void DieClientRpc()
     {
         Die();
     }
+
     private void Die()
     {
         var shooting = GetComponent<PlayerShooting>();
@@ -250,7 +201,6 @@ public class Player : NetworkBehaviour
             col.enabled = false;
         }
 
-        // 只有 Bot 才缩扁，正常玩家不缩
         if (IsBot)
         {
             transform.localScale = new Vector3(1f, 0.2f, 1f);
@@ -267,16 +217,6 @@ public class Player : NetworkBehaviour
         return currentHealth.Value;
     }
 
-    /*private Vector3 GetRespawnPosition()
-    {
-        GameObject spawn = GameObject.Find("SpawnPoint");
-        if (spawn != null)
-        {
-            return spawn.transform.position;
-        }
-
-        return new Vector3(0f, 10f, 0f);
-    }*/
     private Vector3 GetRespawnPosition()
     {
         if (respawnAtCurrentPosition)

@@ -13,10 +13,9 @@ public class TrainingTarget : NetworkBehaviour
     [SerializeField] private Collider headCollider;
     [SerializeField] private GameObject visualRoot;
 
-
-    [SerializeField] private float hiddenYOffset = 3.5f;   // 地下多深
-    [SerializeField] private float riseDuration = 0.22f;   // 升起时间
-    [SerializeField] private float fallDuration = 0.16f;   // 下沉时间
+    [SerializeField] private float hiddenYOffset = 3.5f;
+    [SerializeField] private float riseDuration = 0.22f;
+    [SerializeField] private float fallDuration = 0.16f;
 
     private Coroutine moveCoroutine;
     private Vector3 visiblePosition;
@@ -48,6 +47,7 @@ public class TrainingTarget : NetworkBehaviour
             bodyCollider = GetComponent<Collider>();
         }
     }
+
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
@@ -89,7 +89,7 @@ public class TrainingTarget : NetworkBehaviour
         transform.position = hiddenPosition;
         currentHealth = maxHealth;
         isDead = false;
-        isActiveTarget = false; // 升起过程中先不给打
+        isActiveTarget = false;
         currentState = TargetState.Rising;
         netVisible.Value = true;
 
@@ -163,18 +163,20 @@ public class TrainingTarget : NetworkBehaviour
         if (headCollider != null) headCollider.enabled = visible;
         if (visualRoot != null) visualRoot.SetActive(visible);
     }
+
     public override void OnNetworkDespawn()
     {
         base.OnNetworkDespawn();
         netVisible.OnValueChanged -= OnVisibleChanged;
     }
+
     private IEnumerator RiseRoutine()
     {
         float elapsed = 0f;
         Vector3 start = hiddenPosition;
         Vector3 end = visiblePosition;
 
-        ApplyVisibleState(false);   // 一开始先隐藏
+        ApplyVisibleState(false);
 
         while (elapsed < riseDuration)
         {
@@ -182,7 +184,6 @@ public class TrainingTarget : NetworkBehaviour
             float t = Mathf.Clamp01(elapsed / riseDuration);
             transform.position = Vector3.Lerp(start, end, t);
 
-            // 快接近地面时再显示
             if (t >= 0.85f && (visualRoot == null || !visualRoot.activeSelf))
             {
                 ApplyVisibleState(true);
@@ -197,6 +198,7 @@ public class TrainingTarget : NetworkBehaviour
         currentState = TargetState.Visible;
         moveCoroutine = null;
     }
+
     private IEnumerator FallRoutine()
     {
         float elapsed = 0f;
@@ -211,7 +213,6 @@ public class TrainingTarget : NetworkBehaviour
             float t = Mathf.Clamp01(elapsed / fallDuration);
             transform.position = Vector3.Lerp(start, end, t);
 
-            // 下沉到 25% 左右就隐藏，后面继续在地下移动但用户看不见
             if (t >= 0.08f && !hiddenApplied)
             {
                 ApplyVisibleState(false);

@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
@@ -12,13 +10,12 @@ public class PlayerInfo : MonoBehaviour
     [SerializeField]
     private Transform infoUI;
     private Player player;
-    // Start is called before the first frame update
+
     void Awake()
     {
         player = GetComponent<Player>();
     }
 
-    // Update is called once per frame
     void Update()
     {
         playerName.text = transform.name;

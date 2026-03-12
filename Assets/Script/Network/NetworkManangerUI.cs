@@ -16,7 +16,6 @@ public class NetworkManangerUI : MonoBehaviour
     [SerializeField]
     private Button room2;
 
-    // Start is called before the first frame update
     void Start()
     {
         var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
@@ -26,15 +25,15 @@ public class NetworkManangerUI : MonoBehaviour
         ushort port = 7777;
         bool launchAsServer = false;
 
-        for (int i = 0; i < args.Length; i ++ )
+        for (int i = 0; i < args.Length; i++)
         {
-            //if (args[i] == "-port")
             if (args[i] == "-port" && i + 1 < args.Length)
             {
                 port = ushort.Parse(args[i + 1]);
             }
         }
-        for (int i = 0; i < args.Length; i ++ )
+
+        for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "-launch-as-server")
             {
@@ -78,24 +77,22 @@ public class NetworkManangerUI : MonoBehaviour
             NetworkManager.Singleton.StartHost();
             DestroyAllButtons();
         });
+
         serverBtn.onClick.AddListener(() =>
         {
             NetworkManager.Singleton.StartServer();
             DestroyAllButtons();
         });
-        clientBtn.onClick.AddListener(() => 
+
+        clientBtn.onClick.AddListener(() =>
         {
             NetworkManager.Singleton.StartClient();
             DestroyAllButtons();
         });
-
     }
 
     private void DestroyAllButtons()
     {
-        //Destroy(hostBtn.gameObject);
-        //Destroy(serverBtn.gameObject);
-        //Destroy(clientBtn.gameObject);
         if (room1 != null) Destroy(room1.gameObject);
         if (room2 != null) Destroy(room2.gameObject);
     }

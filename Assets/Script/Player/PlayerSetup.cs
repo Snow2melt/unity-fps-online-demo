@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
 
@@ -9,12 +7,6 @@ public class PlayerSetup : NetworkBehaviour
     private Behaviour[] componentsToDisable;
     private Camera sceneCamera;
 
-    /*private void Awake()
-    {
-        sceneCamera = GetComponentInParent<Camera>();
-    }*/
-
-    // Start is called before the first frame update
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
@@ -40,26 +32,16 @@ public class PlayerSetup : NetworkBehaviour
 
         player.Setup();
         GameManager.Singleton.RegisterPlayer(name, player);
-
-        //RegisterPlayer();
-        //SetPlayerName();
     }
 
     private void SetLayerMaskForAllChildren(Transform transform, LayerMask layerMask)
     {
         transform.gameObject.layer = layerMask;
-        for (int i = 0; i < transform.childCount; i ++ )
+        for (int i = 0; i < transform.childCount; i++)
         {
             SetLayerMaskForAllChildren(transform.GetChild(i), layerMask);
         }
     }
-
-    /*private void RegisterPlayer()
-    {
-        string name = "Player" + GetComponent<NetworkObject>().NetworkObjectId.ToString();
-        Player player = GetComponent<Player>();
-        GameManager.Singleton.RegisterPlayer(name, player);
-    }*/
 
     private void SetPlayerName()
     {
@@ -68,11 +50,12 @@ public class PlayerSetup : NetworkBehaviour
 
     private void DisableComponents()
     {
-        for (int i = 0; i < componentsToDisable.Length; i ++)
+        for (int i = 0; i < componentsToDisable.Length; i++)
         {
             componentsToDisable[i].enabled = false;
         }
     }
+
     public override void OnNetworkDespawn()
     {
         if (sceneCamera != null)
@@ -81,8 +64,4 @@ public class PlayerSetup : NetworkBehaviour
         }
         GameManager.Singleton.UnRegisterPlayer(transform.name);
     }
-    /*private void OnDisable()
-    {
-        
-    }*/
 }

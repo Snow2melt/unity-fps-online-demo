@@ -5,20 +5,13 @@ using Unity.Netcode;
 
 public class WeaponManager : NetworkBehaviour
 {
-    //[SerializeField]
-    //private PlayerWeapon primaryWeapon;
-
     [SerializeField]
     private GameObject weaponHolder;
 
     private PlayerWeapon currentWeapon;
-
-    //[SerializeField]
-    //private PlayerWeapon secondaryWeapon;
     private WeaponGraphics currentGraphics;
     private AudioSource currentAudioSource;
 
-    //新增
     [SerializeField]
     private WeaponConfig primaryWeaponConfig;
 
@@ -30,8 +23,6 @@ public class WeaponManager : NetworkBehaviour
 
     private WeaponConfig currentWeaponConfig;
     private WeaponState currentWeaponState;
-
-    // Start is called before the first frame update 
 
     private bool inited = false;
 
@@ -48,12 +39,6 @@ public class WeaponManager : NetworkBehaviour
 
     void Start()
     {
-        //EquipWeapon(primaryWeapon);
-        //primaryWeaponState.Init(primaryWeaponConfig);
-        //secondaryWeaponState.Init(secondaryWeaponConfig);
-
-       // EquipWeapon(primaryWeaponConfig, primaryWeaponState);
-
         if (primaryWeaponConfig == null)
         {
             Debug.LogError("[WeaponManager] primaryWeaponConfig is NULL");
@@ -68,57 +53,6 @@ public class WeaponManager : NetworkBehaviour
 
         EquipWeapon(primaryWeaponConfig, primaryWeaponState);
     }
-
-    /*public void EquipWeapon(PlayerWeapon weapon)
-    {
-        currentWeapon = weapon;
-
-        while (weaponHolder.transform.childCount > 0)
-        {
-            DestroyImmediate(weaponHolder.transform.GetChild(0).gameObject);
-        }
-
-        GameObject weaponObject = Instantiate(currentWeapon.graphics, weaponHolder.transform.position, weaponHolder.transform.rotation);
-        weaponObject.transform.SetParent(weaponHolder.transform);
-
-        currentGraphics = weaponObject.GetComponent<WeaponGraphics>();
-        currentAudioSource = weaponObject.GetComponent<AudioSource>();
-        if (IsLocalPlayer)
-        {
-            currentAudioSource.spatialBlend = 0f; //防止自己在右边
-        }    
-    }*/
-
-    /*public void EquipWeapon(WeaponConfig config, WeaponState state)
-    {
-        if (currentWeaponConfig.graphics == null)
-        {
-            Debug.LogError($"[WeaponManager] graphics is NULL for config={currentWeaponConfig.weaponName}");
-            return;
-        }
-
-        currentWeaponConfig = config;
-        currentWeaponState = state;
-
-        while (weaponHolder.transform.childCount > 0)
-        {
-            Destroy(weaponHolder.transform.GetChild(0).gameObject);
-        }
-
-        GameObject weaponObject = Instantiate(currentWeaponConfig.graphics, weaponHolder.transform.position, weaponHolder.transform.rotation);
-        weaponObject.transform.SetParent(weaponHolder.transform);
-
-        currentGraphics = weaponObject.GetComponent<WeaponGraphics>();
-        currentAudioSource = weaponObject.GetComponent<AudioSource>();
-
-        if (currentAudioSource != null && IsLocalPlayer)
-            currentAudioSource.spatialBlend = 0f;
-
-        if (IsLocalPlayer)
-        {
-            currentAudioSource.spatialBlend = 0f;
-        }
-    }*/
 
     public void EquipWeapon(WeaponConfig config, WeaponState state)
     {
@@ -143,17 +77,14 @@ public class WeaponManager : NetworkBehaviour
             return;
         }
 
-        // 先赋值（之后再用 currentWeaponConfig）
         currentWeaponConfig = config;
         currentWeaponState = state;
 
-        // 清空旧武器
         for (int i = weaponHolder.transform.childCount - 1; i >= 0; i--)
         {
             Destroy(weaponHolder.transform.GetChild(i).gameObject);
         }
 
-        // 实例化新武器（建议用 SetParent(false) 避免偏移）
         GameObject weaponObject = Instantiate(config.graphics);
         weaponObject.transform.SetParent(weaponHolder.transform, false);
         weaponObject.transform.localPosition = Vector3.zero;
@@ -183,15 +114,12 @@ public class WeaponManager : NetworkBehaviour
 
     public void ToggleWeapon()
     {
-        //if (currentWeapon == primaryWeapon)
         if (currentWeaponConfig == primaryWeaponConfig)
         {
-            //EquipWeapon(secondaryWeapon);
             EquipWeapon(secondaryWeaponConfig, secondaryWeaponState);
         }
         else
         {
-            //EquipWeapon(primaryWeapon);
             EquipWeapon(primaryWeaponConfig, primaryWeaponState);
         }
     }
@@ -201,7 +129,6 @@ public class WeaponManager : NetworkBehaviour
     {
         ToggleWeapon();
     }
-
 
     [ServerRpc]
     private void ToggleWeaponServerRpc()
@@ -213,12 +140,10 @@ public class WeaponManager : NetworkBehaviour
         ToggleWeaponClientRpc();
     }
 
-    // Update is called once per frame
     void Update()
     {
         if (IsLocalPlayer)
         {
-
             if (Input.GetKeyUp(KeyCode.Q))
             {
                 ToggleWeaponServerRpc();
@@ -226,28 +151,15 @@ public class WeaponManager : NetworkBehaviour
         }
     }
 
-    //public void Reload(PlayerWeapon playerWeapon)
     public void Reload(WeaponConfig config, WeaponState state)
     {
-        //if (playerWeapon.isReloading) return;
-        //playerWeapon.isReloading = true;
         if (state.isReloading) return;
         state.isReloading = true;
 
         print("Reload ... ");
 
-        //StartCoroutine(ReloadCoroutine(playerWeapon));
         StartCoroutine(ReloadCoroutine(config, state));
     }
-
-    /*private IEnumerator ReloadCoroutine(PlayerWeapon playerWeapon)
-    {
-        yield return new WaitForSeconds(playerWeapon.reloadTime);
-
-        playerWeapon.bullets = playerWeapon.maxBullets;
-
-        playerWeapon.isReloading = false;
-    }*/
 
     private IEnumerator ReloadCoroutine(WeaponConfig config, WeaponState state)
     {
@@ -272,7 +184,6 @@ public class WeaponManager : NetworkBehaviour
     public WeaponConfig GetWeaponConfigBySlot(int slot)
     {
         EnsureInited();
-        // slot: 0=主武器 1=副武器
         if (slot == 0) return primaryWeaponConfig;
         if (slot == 1) return secondaryWeaponConfig;
         return primaryWeaponConfig;
@@ -281,7 +192,6 @@ public class WeaponManager : NetworkBehaviour
     public int GetCurrentWeaponSlot()
     {
         EnsureInited();
-        // 当前装备的是哪把
         return currentWeaponConfig == primaryWeaponConfig ? 0 : 1;
     }
 }
